@@ -23,7 +23,20 @@ async function init() {
   searchInput.addEventListener('input', handleSearch);
   searchInput.addEventListener('keydown', handleKeydown);
   document.getElementById('openManager').addEventListener('click', openManager);
-  
+
+  // Event delegation for tab results
+  resultsEl.addEventListener('click', handleResultClick);
+
+  // Handle favicon errors via event delegation
+  resultsEl.addEventListener('error', (e) => {
+    if (e.target.classList.contains('tab-favicon') && e.target.dataset.fallback) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'tab-favicon placeholder';
+      placeholder.textContent = '🌐';
+      e.target.replaceWith(placeholder);
+    }
+  }, true);
+
   // Focus search
   searchInput.focus();
 }
@@ -111,6 +124,18 @@ function scrollToSelected() {
   }
 }
 
+function handleResultClick(e) {
+  const tabResult = e.target.closest('.tab-result');
+  if (tabResult) {
+    const tabId = parseInt(tabResult.dataset.tabId);
+    const windowId = parseInt(tabResult.dataset.windowId);
+    const tab = filteredTabs.find(t => t.id === tabId && t.windowId === windowId);
+    if (tab) {
+      navigateToTab(tab);
+    }
+  }
+}
+
 function renderResults() {
   if (filteredTabs.length === 0) {
     resultsEl.innerHTML = '<div class="empty-state">No matching tabs</div>';
@@ -123,14 +148,13 @@ function renderResults() {
     const title = highlightMatch(tab.title || 'Untitled', query);
     const url = highlightMatch(getDisplayUrl(tab.url), query);
     const favicon = tab.favIconUrl || '';
-    
+
     return `
       <div class="tab-result ${idx === selectedIndex ? 'selected' : ''}"
            data-tab-id="${tab.id}"
-           data-window-id="${tab.windowId}"
-           onclick="navigateToTab(filteredTabs[${idx}])">
-        ${favicon 
-          ? `<img class="tab-favicon" src="${escapeHtml(favicon)}" onerror="this.outerHTML='<div class=\\'tab-favicon placeholder\\'>🌐</div>'">`
+           data-window-id="${tab.windowId}">
+        ${favicon
+          ? `<img class="tab-favicon" src="${escapeHtml(favicon)}" data-fallback="true">`
           : '<div class="tab-favicon placeholder">🌐</div>'
         }
         <div class="tab-info">
@@ -188,6 +212,3 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Make navigateToTab available globally for onclick
-window.navigateToTab = navigateToTab;
-window.filteredTabs = filteredTabs;

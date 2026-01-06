@@ -66,7 +66,7 @@ function setupEventListeners() {
     searchQuery = e.target.value.toLowerCase();
     renderWindows();
   });
-  
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -78,38 +78,167 @@ function setupEventListeners() {
       searchInput.select();
     }
   });
-  
+
   // Export button
   document.getElementById('btnExport').addEventListener('click', () => {
     document.getElementById('exportModal').classList.remove('hidden');
   });
-  
+
   // Settings button
   document.getElementById('btnSettings').addEventListener('click', () => {
     document.getElementById('settingsModal').classList.remove('hidden');
   });
-  
+
   // Export actions
   document.getElementById('exportCsv').addEventListener('click', exportToCsv);
   document.getElementById('exportJson').addEventListener('click', exportToJson);
-  
+
   // Save session modal
   document.getElementById('confirmSaveSession').addEventListener('click', confirmSaveSession);
   document.getElementById('sessionName').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') confirmSaveSession();
   });
-  
+
   // Theme select
   themeSelect.addEventListener('change', async (e) => {
     const theme = e.target.value;
     applyTheme(theme);
     await chrome.runtime.sendMessage({ action: 'updateSettings', settings: { darkMode: theme } });
   });
-  
+
   // New window drop zone
   newWindowZone.addEventListener('dragover', handleNewWindowDragOver);
   newWindowZone.addEventListener('dragleave', handleNewWindowDragLeave);
   newWindowZone.addEventListener('drop', handleNewWindowDrop);
+
+  // Event delegation for dynamically rendered elements
+  // Windows container - handles tabs and window actions
+  windowsContainer.addEventListener('click', handleWindowsContainerClick);
+  windowsContainer.addEventListener('dragstart', handleWindowsContainerDragStart);
+  windowsContainer.addEventListener('dragend', handleDragEnd);
+  windowsContainer.addEventListener('dragover', handleWindowsContainerDragOver);
+  windowsContainer.addEventListener('dragleave', handleWindowsContainerDragLeave);
+  windowsContainer.addEventListener('drop', handleWindowsContainerDrop);
+
+  // Sessions list - handles session clicks
+  sessionsListEl.addEventListener('click', handleSessionsClick);
+
+  // Recently closed list - handles restore clicks
+  recentlyClosedListEl.addEventListener('click', handleRecentlyClosedClick);
+
+  // Modal close buttons
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modal = e.target.closest('.modal');
+      if (modal) modal.classList.add('hidden');
+    });
+  });
+}
+
+// Event delegation handlers
+function handleWindowsContainerClick(e) {
+  // Check for tab action buttons first (they have stopPropagation behavior)
+  const suspendBtn = e.target.closest('.tab-btn[data-action="suspend-tab"]');
+  if (suspendBtn) {
+    const tabId = parseInt(suspendBtn.dataset.tabId);
+    suspendTab(tabId);
+    return;
+  }
+
+  const closeTabBtn = e.target.closest('.tab-btn[data-action="close-tab"]');
+  if (closeTabBtn) {
+    const tabId = parseInt(closeTabBtn.dataset.tabId);
+    closeTab(tabId);
+    return;
+  }
+
+  // Check for window action buttons
+  const saveBtn = e.target.closest('.window-btn[data-action="save-session"]');
+  if (saveBtn) {
+    const windowId = parseInt(saveBtn.dataset.windowId);
+    saveWindowSession(windowId);
+    return;
+  }
+
+  const suspendWindowBtn = e.target.closest('.window-btn[data-action="suspend-window"]');
+  if (suspendWindowBtn) {
+    const windowId = parseInt(suspendWindowBtn.dataset.windowId);
+    suspendWindow(windowId);
+    return;
+  }
+
+  const closeWindowBtn = e.target.closest('.window-btn[data-action="close-window"]');
+  if (closeWindowBtn) {
+    const windowId = parseInt(closeWindowBtn.dataset.windowId);
+    closeWindow(windowId);
+    return;
+  }
+
+  // Check for tab card click (navigate to tab)
+  const tabCard = e.target.closest('.tab-card');
+  if (tabCard && !draggedTab) {
+    const tabId = parseInt(tabCard.dataset.tabId);
+    const windowId = parseInt(tabCard.dataset.windowId);
+    navigateToTab(tabId, windowId);
+    return;
+  }
+}
+
+function handleWindowsContainerDragStart(e) {
+  const tabCard = e.target.closest('.tab-card');
+  if (tabCard) {
+    const tabId = parseInt(tabCard.dataset.tabId);
+    const windowId = parseInt(tabCard.dataset.windowId);
+    handleDragStart(e, tabId, windowId, tabCard);
+  }
+}
+
+function handleWindowsContainerDragOver(e) {
+  const column = e.target.closest('.window-column');
+  if (column && draggedTab) {
+    const windowId = parseInt(column.dataset.windowId);
+    handleWindowDragOver(e, windowId, column);
+  }
+}
+
+function handleWindowsContainerDragLeave(e) {
+  const column = e.target.closest('.window-column');
+  if (column) {
+    handleWindowDragLeave(e, column);
+  }
+}
+
+function handleWindowsContainerDrop(e) {
+  const column = e.target.closest('.window-column');
+  if (column && draggedTab) {
+    const windowId = parseInt(column.dataset.windowId);
+    handleWindowDrop(e, windowId, column);
+  }
+}
+
+function handleSessionsClick(e) {
+  // Check for delete button first
+  const deleteBtn = e.target.closest('.chip-close');
+  if (deleteBtn) {
+    const sessionId = deleteBtn.dataset.sessionId;
+    deleteSession(sessionId);
+    return;
+  }
+
+  // Check for session chip click
+  const sessionChip = e.target.closest('.session-chip');
+  if (sessionChip) {
+    const sessionId = sessionChip.dataset.sessionId;
+    restoreSession(sessionId);
+  }
+}
+
+function handleRecentlyClosedClick(e) {
+  const closedChip = e.target.closest('.closed-chip');
+  if (closedChip) {
+    const sessionId = closedChip.dataset.sessionId;
+    restoreClosedItem(sessionId);
+  }
 }
 
 // Theme
@@ -173,30 +302,26 @@ function renderWindows() {
   windowsContainer.innerHTML = filteredWindows.map((window, idx) => {
     const isCurrent = window.id === currentWindowId;
     const windowName = isCurrent ? 'Current Window' : `Window ${idx + 1}`;
-    
+
     return `
-      <div class="window-column ${isCurrent ? 'current' : ''}" 
-           data-window-id="${window.id}"
-           ondragover="handleWindowDragOver(event, ${window.id})"
-           ondragleave="handleWindowDragLeave(event, ${window.id})"
-           ondrop="handleWindowDrop(event, ${window.id})">
+      <div class="window-column ${isCurrent ? 'current' : ''}" data-window-id="${window.id}">
         <div class="window-header">
           <div class="window-indicator"></div>
           <span class="window-title">${windowName}</span>
           <span class="window-badge">${window.tabs.length}</span>
           <div class="window-actions">
-            <button class="window-btn" title="Save as session" onclick="saveWindowSession(${window.id})">
+            <button class="window-btn" title="Save as session" data-action="save-session" data-window-id="${window.id}">
               <svg viewBox="0 0 24 24" width="14" height="14">
                 <path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
               </svg>
             </button>
-            <button class="window-btn" title="Suspend all" onclick="suspendWindow(${window.id})">
+            <button class="window-btn" title="Suspend all" data-action="suspend-window" data-window-id="${window.id}">
               <svg viewBox="0 0 24 24" width="14" height="14">
                 <path fill="currentColor" d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
               </svg>
             </button>
             ${!isCurrent ? `
-              <button class="window-btn danger" title="Close window" onclick="closeWindow(${window.id})">
+              <button class="window-btn danger" title="Close window" data-action="close-window" data-window-id="${window.id}">
                 <svg viewBox="0 0 24 24" width="14" height="14">
                   <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                 </svg>
@@ -216,17 +341,14 @@ function renderTab(tab) {
   const title = highlightMatch(tab.title || 'Untitled', searchQuery);
   const url = highlightMatch(getDisplayUrl(tab.url), searchQuery);
   const favicon = tab.favIconUrl || '';
-  
+
   return `
     <div class="tab-card ${tab.active ? 'active' : ''} ${tab.discarded ? 'discarded' : ''} ${tab.pinned ? 'pinned' : ''}"
          data-tab-id="${tab.id}"
          data-window-id="${tab.windowId}"
-         draggable="true"
-         onclick="navigateToTab(${tab.id}, ${tab.windowId})"
-         ondragstart="handleDragStart(event, ${tab.id}, ${tab.windowId})"
-         ondragend="handleDragEnd(event)">
-      ${favicon 
-        ? `<img class="tab-favicon" src="${escapeHtml(favicon)}" onerror="this.outerHTML='<div class=\\'tab-favicon placeholder\\'>🌐</div>'">`
+         draggable="true">
+      ${favicon
+        ? `<img class="tab-favicon" src="${escapeHtml(favicon)}" data-fallback="true">`
         : '<div class="tab-favicon placeholder">🌐</div>'
       }
       <div class="tab-info">
@@ -234,12 +356,12 @@ function renderTab(tab) {
         <div class="tab-url">${url}</div>
       </div>
       <div class="tab-actions">
-        <button class="tab-btn" title="Suspend" onclick="event.stopPropagation(); suspendTab(${tab.id})">
+        <button class="tab-btn" title="Suspend" data-action="suspend-tab" data-tab-id="${tab.id}">
           <svg viewBox="0 0 24 24" width="12" height="12">
             <path fill="currentColor" d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
           </svg>
         </button>
-        <button class="tab-btn danger" title="Close" onclick="event.stopPropagation(); closeTab(${tab.id})">
+        <button class="tab-btn danger" title="Close" data-action="close-tab" data-tab-id="${tab.id}">
           <svg viewBox="0 0 24 24" width="12" height="12">
             <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
@@ -255,12 +377,12 @@ function renderSessions() {
     sessionsListEl.innerHTML = '<span class="empty-state">No saved sessions</span>';
     return;
   }
-  
+
   sessionsListEl.innerHTML = savedSessions.map(session => `
-    <div class="session-chip" onclick="restoreSession('${session.id}')">
+    <div class="session-chip" data-session-id="${session.id}">
       <span>${escapeHtml(session.name)}</span>
       <span class="chip-count">${session.tabs.length}</span>
-      <button class="chip-close" onclick="event.stopPropagation(); deleteSession('${session.id}')" title="Delete">
+      <button class="chip-close" data-session-id="${session.id}" title="Delete">
         <svg viewBox="0 0 24 24" width="10" height="10">
           <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
         </svg>
@@ -275,17 +397,17 @@ function renderRecentlyClosed() {
     recentlyClosedListEl.innerHTML = '<span class="empty-state">No recently closed</span>';
     return;
   }
-  
+
   recentlyClosedListEl.innerHTML = recentlyClosed.slice(0, 8).map(item => {
     if (item.tab) {
       return `
-        <div class="closed-chip" onclick="restoreClosedItem('${item.tab.sessionId}')">
+        <div class="closed-chip" data-session-id="${item.tab.sessionId}">
           <span>${escapeHtml(truncate(item.tab.title || 'Untitled', 25))}</span>
         </div>
       `;
     } else if (item.window) {
       return `
-        <div class="closed-chip" onclick="restoreClosedItem('${item.window.sessionId}')">
+        <div class="closed-chip" data-session-id="${item.window.sessionId}">
           <span>Window</span>
           <span class="chip-count">${item.window.tabs.length}</span>
         </div>
@@ -311,13 +433,13 @@ function filterWindows() {
 }
 
 // Drag and Drop handlers
-function handleDragStart(event, tabId, windowId) {
+function handleDragStart(event, tabId, windowId, element) {
   draggedTab = { tabId, windowId };
-  draggedElement = event.target;
-  
+  draggedElement = element;
+
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', JSON.stringify({ tabId, windowId }));
-  
+
   // Add dragging class after a frame (so drag image captures normal state)
   requestAnimationFrame(() => {
     draggedElement.classList.add('dragging');
@@ -337,39 +459,34 @@ function handleDragEnd(event) {
   });
 }
 
-function handleWindowDragOver(event, windowId) {
+function handleWindowDragOver(event, windowId, column) {
   if (!draggedTab) return;
-  
+
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
-  
-  const column = event.currentTarget;
   column.classList.add('drag-over');
 }
 
-function handleWindowDragLeave(event, windowId) {
-  const column = event.currentTarget;
+function handleWindowDragLeave(event, column) {
   // Only remove if we're actually leaving the column
   if (!column.contains(event.relatedTarget)) {
     column.classList.remove('drag-over');
   }
 }
 
-async function handleWindowDrop(event, targetWindowId) {
+async function handleWindowDrop(event, targetWindowId, column) {
   event.preventDefault();
-  
-  const column = event.currentTarget;
   column.classList.remove('drag-over');
-  
+
   if (!draggedTab || draggedTab.windowId === targetWindowId) {
     // Same window - could handle reordering here
     return;
   }
-  
+
   try {
     // Move tab to target window
-    await chrome.tabs.move(draggedTab.tabId, { 
-      windowId: targetWindowId, 
+    await chrome.tabs.move(draggedTab.tabId, {
+      windowId: targetWindowId,
       index: -1 // Add to end
     });
     await loadWindows();
@@ -412,45 +529,45 @@ async function handleNewWindowDrop(event) {
 }
 
 // Actions
-window.navigateToTab = async function(tabId, windowId) {
+async function navigateToTab(tabId, windowId) {
   // Don't navigate if we were dragging
   if (draggedTab) return;
-  
+
   try {
     await chrome.tabs.update(tabId, { active: true });
     await chrome.windows.update(windowId, { focused: true });
   } catch (e) {
     console.error('Failed to navigate to tab:', e);
   }
-};
+}
 
-window.closeTab = async function(tabId) {
+async function closeTab(tabId) {
   await chrome.tabs.remove(tabId);
   await loadWindows();
   await loadRecentlyClosed();
-};
+}
 
-window.closeWindow = async function(windowId) {
+async function closeWindow(windowId) {
   if (!confirm('Close this window and all its tabs?')) return;
   await chrome.windows.remove(windowId);
   await loadWindows();
   await loadRecentlyClosed();
-};
+}
 
-window.suspendTab = async function(tabId) {
+async function suspendTab(tabId) {
   try {
     await chrome.tabs.discard(tabId);
     await loadWindows();
   } catch (e) {
     console.error('Cannot suspend this tab:', e);
   }
-};
+}
 
-window.suspendWindow = async function(windowId) {
-  const window = allWindows.find(w => w.id === windowId);
-  if (!window) return;
-  
-  for (const tab of window.tabs) {
+async function suspendWindow(windowId) {
+  const win = allWindows.find(w => w.id === windowId);
+  if (!win) return;
+
+  for (const tab of win.tabs) {
     if (!tab.active && !tab.discarded) {
       try {
         await chrome.tabs.discard(tab.id);
@@ -460,17 +577,17 @@ window.suspendWindow = async function(windowId) {
     }
   }
   await loadWindows();
-};
+}
 
-window.saveWindowSession = function(windowId) {
+function saveWindowSession(windowId) {
   windowToSave = allWindows.find(w => w.id === windowId);
   if (!windowToSave) return;
-  
+
   const sessionNameInput = document.getElementById('sessionName');
   sessionNameInput.value = '';
   document.getElementById('saveSessionModal').classList.remove('hidden');
   setTimeout(() => sessionNameInput.focus(), 100);
-};
+}
 
 async function confirmSaveSession() {
   const name = document.getElementById('sessionName').value.trim();
@@ -487,21 +604,21 @@ async function confirmSaveSession() {
   await loadSessions();
 }
 
-window.restoreSession = async function(sessionId) {
+async function restoreSession(sessionId) {
   await chrome.runtime.sendMessage({ action: 'restoreSession', sessionId });
   await loadWindows();
-};
+}
 
-window.deleteSession = async function(sessionId) {
+async function deleteSession(sessionId) {
   await chrome.runtime.sendMessage({ action: 'deleteSession', sessionId });
   await loadSessions();
-};
+}
 
-window.restoreClosedItem = async function(sessionId) {
+async function restoreClosedItem(sessionId) {
   await chrome.runtime.sendMessage({ action: 'restoreClosedItem', sessionId });
   await loadWindows();
   await loadRecentlyClosed();
-};
+}
 
 // Export functions
 async function exportToCsv() {
@@ -553,9 +670,9 @@ function downloadFile(content, filename, mimeType) {
 }
 
 // Modals
-window.closeModal = function(modalId) {
+function closeModal(modalId) {
   document.getElementById(modalId).classList.add('hidden');
-};
+}
 
 function closeAllModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
@@ -602,9 +719,12 @@ function formatTimeAgo(timestamp) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-// Make drag handlers available globally
-window.handleDragStart = handleDragStart;
-window.handleDragEnd = handleDragEnd;
-window.handleWindowDragOver = handleWindowDragOver;
-window.handleWindowDragLeave = handleWindowDragLeave;
-window.handleWindowDrop = handleWindowDrop;
+// Handle favicon load errors via event delegation
+windowsContainer.addEventListener('error', (e) => {
+  if (e.target.classList.contains('tab-favicon') && e.target.dataset.fallback) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'tab-favicon placeholder';
+    placeholder.textContent = '🌐';
+    e.target.replaceWith(placeholder);
+  }
+}, true);
