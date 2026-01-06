@@ -1,6 +1,8 @@
 # Clustr
 
-A Chrome extension that brings back the beloved [Cluster](https://chrome.google.com/webstore/detail/cluster-window-tab-manage/aadahadfdmiibmdhfmpbeeebejmjnkef) tab manager, which was discontinued in 2023.
+A Chrome extension that brings back the beloved [Cluster](https://chrome.google.com/webstore/detail/cluster-window-tab-manage/aadahadfdmiibmdhfmpbeeebejmjnkef) tab manager, which was discontinued in 2023. 😢
+
+![Clustr main screen](screenshots/mainscreen.png)
 
 ## Features
 
