@@ -1,5 +1,23 @@
 # Release Notes
 
+## v0.3.0 (2026-01-08)
+
+### Changes
+
+- chore: Add Vite build system and dependencies
+  - Add package.json with vite, @anthropic-ai/sdk, openai dependencies
+  - Configure vite.config.js for Chrome extension bundling
+  - Build outputs bundled extension to dist/ directory
+
+- feat: Add AI chat assistant to manager
+  - Restructure project to src/ directory for Vite builds
+  - Add AI service layer supporting Chrome AI (Gemini Nano), OpenAI, and Anthropic
+  - Add collapsible chat sidebar to manager UI (right side)
+  - Add AI provider settings in settings modal
+  - Add bookmarks permission for AI context
+  - AI can answer questions about tabs and suggest organization
+  - AI actions: closeTabs, focusTab, saveSession, searchTabs
+
 ## v0.2.0 (2026-01-08)
 
 ### Changes
