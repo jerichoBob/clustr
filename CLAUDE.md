@@ -69,14 +69,36 @@ This is a vanilla JavaScript Chrome extension with no build process, package man
 ```javascript
 // Sessions stored in chrome.storage.local
 {
-  sessions: [
-    { id: "uuid", name: "string", createdAt: "ISO date", tabs: [...] }
+  savedSessions: [
+    { id: "uuid", name: "string", createdAt: timestamp, tabs: [...] }
   ],
-  settings: { theme: "system" | "dark" | "light" },
+  settings: { darkMode: "system" | "dark" | "light" },
   undoHistory: [{ type: "string", data: {...}, timestamp: number }]
 }
 ```
 
+### Message API
+
+UI components communicate with the service worker via `chrome.runtime.sendMessage`. Supported actions:
+
+| Action | Params | Description |
+|--------|--------|-------------|
+| `openManager` | — | Opens/focuses the full manager tab |
+| `saveSession` | `name`, `tabs` | Saves tabs as a named session |
+| `deleteSession` | `sessionId` | Deletes a saved session |
+| `getSessions` | — | Returns all saved sessions |
+| `getRecentlyClosed` | — | Returns recently closed tabs/windows |
+| `restoreSession` | `sessionId` | Restores a saved session in new window |
+| `restoreClosedItem` | `sessionId` | Restores a recently closed tab/window |
+| `getSettings` | — | Returns current settings |
+| `updateSettings` | `settings` | Updates settings |
+
 ### Theming
 
 CSS variable-based theming with three modes: system (default), dark, light. Theme preference stored in settings and applied via `data-theme` attribute on `<html>`.
+
+## Versioning
+
+- **Version source**: `manifest.json` (standard for Chrome extensions)
+- **Release notes**: `docs/release-notes.md`
+- **Commit workflow**: Use `/commit` or `/commity` commands for semantic versioning and release notes updates
