@@ -100,6 +100,8 @@ body {
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   gap: 20px;
+  position: relative;
+  z-index: 100;
 }
 
 .header-left {
@@ -741,9 +743,9 @@ body {
 /* Chat Sidebar */
 .chat-sidebar {
   position: fixed;
-  top: 0;
+  top: 57px; /* Below header */
   right: 0;
-  height: 100vh;
+  height: calc(100vh - 57px);
   display: flex;
   z-index: 90;
   transition: width 0.3s ease;

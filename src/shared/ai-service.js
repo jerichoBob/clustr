@@ -363,8 +363,46 @@ export async function executeAction(action) {
       break;
 
     case 'groupByDomain':
-      // This is more complex - would need to implement tab grouping
-      return { success: false, message: 'Tab grouping not yet implemented' };
+      try {
+        const allTabs = await chrome.tabs.query({ currentWindow: true });
+
+        // Group tabs by domain
+        const domainMap = new Map();
+        for (const tab of allTabs) {
+          try {
+            const url = new URL(tab.url);
+            const domain = url.hostname.replace('www.', '');
+            if (!domainMap.has(domain)) {
+              domainMap.set(domain, []);
+            }
+            domainMap.get(domain).push(tab.id);
+          } catch (e) {
+            // Skip tabs with invalid URLs (like chrome:// pages)
+          }
+        }
+
+        // Create tab groups for domains with 2+ tabs
+        let groupsCreated = 0;
+        const colors = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+        let colorIndex = 0;
+
+        for (const [domain, tabIds] of domainMap) {
+          if (tabIds.length >= 2) {
+            const groupId = await chrome.tabs.group({ tabIds });
+            await chrome.tabGroups.update(groupId, {
+              title: domain.split('.')[0], // Use first part of domain as title
+              color: colors[colorIndex % colors.length],
+              collapsed: false
+            });
+            groupsCreated++;
+            colorIndex++;
+          }
+        }
+
+        return { success: true, message: `Created ${groupsCreated} tab group(s)` };
+      } catch (e) {
+        return { success: false, message: `Tab grouping failed: ${e.message}` };
+      }
 
     default:
       return { success: false, message: `Unknown action: ${action.action}` };

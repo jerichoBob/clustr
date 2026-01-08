@@ -41,8 +41,29 @@ const chatSend = document.getElementById('chatSend');
 const chatMessagesEl = document.getElementById('chatMessages');
 const chatStatus = document.getElementById('chatStatus');
 const aiProviderSelect = document.getElementById('aiProviderSelect');
+const aiModelSelect = document.getElementById('aiModelSelect');
 const aiApiKey = document.getElementById('aiApiKey');
 const apiKeySection = document.getElementById('apiKeySection');
+
+// Available models per provider
+const AI_MODELS = {
+  'chrome-ai': [
+    { value: 'gemini-nano', label: 'Gemini Nano' }
+  ],
+  'openai': [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+  ],
+  'anthropic': [
+    { value: 'claude-sonnet-4-5-20250929', label: 'Claude 4.5 Sonnet' },
+    { value: 'claude-sonnet-4-20250514', label: 'Claude 4 Sonnet' },
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+  ]
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', init);
@@ -89,14 +110,16 @@ async function init() {
 async function initializeAI(settings) {
   const provider = settings.aiProvider || 'chrome-ai';
   const apiKey = settings.aiApiKey || '';
+  const model = settings.aiModel || '';
 
   // Update UI
   aiProviderSelect.value = provider;
   aiApiKey.value = apiKey;
   updateApiKeyVisibility(provider);
+  populateModelDropdown(provider, model);
 
   // Create AI service
-  aiService = new AIService({ provider, apiKey });
+  aiService = new AIService({ provider, apiKey, model: model || undefined });
 
   // Check availability
   await updateAIStatus();
@@ -124,6 +147,18 @@ function updateApiKeyVisibility(provider) {
     apiKeySection.classList.remove('hidden');
   } else {
     apiKeySection.classList.add('hidden');
+  }
+}
+
+function populateModelDropdown(provider, selectedModel) {
+  const models = AI_MODELS[provider] || [];
+  aiModelSelect.innerHTML = models.map(m =>
+    `<option value="${m.value}"${m.value === selectedModel ? ' selected' : ''}>${m.label}</option>`
+  ).join('');
+
+  // If no model selected, default to first option
+  if (!selectedModel && models.length > 0) {
+    aiModelSelect.value = models[0].value;
   }
 }
 
@@ -193,12 +228,17 @@ function setupEventListeners() {
   // Recently closed list - handles restore clicks
   recentlyClosedListEl.addEventListener('click', handleRecentlyClosedClick);
 
-  // Modal close buttons
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const modal = e.target.closest('.modal');
-      if (modal) modal.classList.add('hidden');
+  // Modal close buttons (using data attributes)
+  document.querySelectorAll('[data-close-modal]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      const modalId = e.target.dataset.closeModal || e.currentTarget.dataset.closeModal;
+      if (modalId) closeModal(modalId);
     });
+  });
+
+  // Settings modal close button
+  document.getElementById('closeSettingsModal').addEventListener('click', () => {
+    closeModal('settingsModal');
   });
 
   // Chat sidebar toggle
@@ -217,6 +257,12 @@ function setupEventListeners() {
   aiProviderSelect.addEventListener('change', async (e) => {
     const provider = e.target.value;
     updateApiKeyVisibility(provider);
+    populateModelDropdown(provider, ''); // Reset to default model for new provider
+    await saveAISettings();
+    await updateAIStatus();
+  });
+
+  aiModelSelect.addEventListener('change', async () => {
     await saveAISettings();
     await updateAIStatus();
   });
@@ -773,15 +819,16 @@ function toggleChatSidebar() {
 
 async function saveAISettings() {
   const provider = aiProviderSelect.value;
+  const model = aiModelSelect.value;
   const apiKey = aiApiKey.value;
 
   // Update service
-  aiService = new AIService({ provider, apiKey });
+  aiService = new AIService({ provider, apiKey, model });
 
   // Save to settings
   await chrome.runtime.sendMessage({
     action: 'updateSettings',
-    settings: { aiProvider: provider, aiApiKey: apiKey }
+    settings: { aiProvider: provider, aiModel: model, aiApiKey: apiKey }
   });
 }
 

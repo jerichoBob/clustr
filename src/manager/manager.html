@@ -126,7 +126,7 @@
 
     <!-- Modals -->
     <div id="exportModal" class="modal hidden">
-      <div class="modal-backdrop" onclick="closeModal('exportModal')"></div>
+      <div class="modal-backdrop" data-close-modal="exportModal"></div>
       <div class="modal-content">
         <h3>Export Tabs</h3>
         <p>Export all open tabs to a file.</p>
@@ -134,25 +134,25 @@
           <button id="exportCsv" class="btn">Export CSV</button>
           <button id="exportJson" class="btn">Export JSON</button>
         </div>
-        <button onclick="closeModal('exportModal')" class="btn btn-secondary">Cancel</button>
+        <button data-close-modal="exportModal" class="btn btn-secondary">Cancel</button>
       </div>
     </div>
 
     <div id="saveSessionModal" class="modal hidden">
-      <div class="modal-backdrop" onclick="closeModal('saveSessionModal')"></div>
+      <div class="modal-backdrop" data-close-modal="saveSessionModal"></div>
       <div class="modal-content">
         <h3>Save Session</h3>
         <p>Save this window's tabs as a reusable session.</p>
         <input type="text" id="sessionName" placeholder="Session name..." autocomplete="off">
         <div class="modal-buttons">
           <button id="confirmSaveSession" class="btn">Save</button>
-          <button onclick="closeModal('saveSessionModal')" class="btn btn-secondary">Cancel</button>
+          <button data-close-modal="saveSessionModal" class="btn btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
 
     <div id="settingsModal" class="modal hidden">
-      <div class="modal-backdrop" onclick="closeModal('settingsModal')"></div>
+      <div class="modal-backdrop" data-close-modal="settingsModal"></div>
       <div class="modal-content settings-modal-content">
         <h3>Settings</h3>
         <div class="setting-row">
@@ -175,12 +175,18 @@
         </div>
         <div id="apiKeySection" class="setting-section hidden">
           <div class="setting-row">
+            <label>Model</label>
+            <select id="aiModelSelect">
+              <!-- Options populated by JavaScript based on provider -->
+            </select>
+          </div>
+          <div class="setting-row">
             <label>API Key</label>
             <input type="password" id="aiApiKey" placeholder="Enter your API key...">
           </div>
           <p class="setting-hint">Your API key is stored locally and never shared.</p>
         </div>
-        <button onclick="closeModal('settingsModal')" class="btn btn-secondary">Close</button>
+        <button id="closeSettingsModal" class="btn btn-secondary">Close</button>
       </div>
     </div>
   </div>
