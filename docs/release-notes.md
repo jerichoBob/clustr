@@ -1,5 +1,17 @@
 # Release Notes
 
+## v0.3.1 (2026-01-08)
+
+### Changes
+
+- fix: UI improvements and tab grouping implementation
+  - Fix chat sidebar overlapping header by positioning below header
+  - Fix modal close buttons not working with ES modules
+  - Implement tab grouping by domain using Chrome tabGroups API
+  - Add model selector dropdown for AI providers
+  - Add Claude 4.5 Sonnet and updated model strings
+  - Add tabGroups permission to manifest
+
 ## v0.3.0 (2026-01-08)
 
 ### Changes
