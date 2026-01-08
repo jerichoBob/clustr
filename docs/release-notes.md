@@ -1,5 +1,16 @@
 # Release Notes
 
+## v0.3.2 (2026-01-08)
+
+### Changes
+
+- chore: Update Anthropic model list
+  - Add all Claude 4.5 models (Opus, Sonnet, Haiku)
+  - Add Claude 4 Sonnet
+  - Keep Claude 3.5 family (Sonnet, Haiku)
+  - Remove Claude 3 family
+  - Default to Claude 4.5 Haiku for cost efficiency
+
 ## v0.3.1 (2026-01-08)
 
 ### Changes
