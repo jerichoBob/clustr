@@ -57,11 +57,16 @@ const AI_MODELS = {
     { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
   ],
   'anthropic': [
+    // Default
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude 4.5 Haiku' },
+    // Claude 4.5 family
+    { value: 'claude-opus-4-5-20251101', label: 'Claude 4.5 Opus' },
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude 4.5 Sonnet' },
+    // Claude 4 family
     { value: 'claude-sonnet-4-20250514', label: 'Claude 4 Sonnet' },
+    // Claude 3.5 family
     { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' }
   ]
 };
 
