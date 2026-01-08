@@ -1,5 +1,15 @@
 # Release Notes
 
+## v0.1.1 (2026-01-08)
+
+### Changes
+
+- docs: Improve CLAUDE.md and add release notes
+  - Fix storage schema accuracy (sessions → savedSessions, theme → darkMode)
+  - Add Message API reference table documenting all service worker actions
+  - Add versioning section documenting manifest.json as version source
+  - Initialize docs/release-notes.md with v0.1.0 initial release
+
 ## v0.1.0 (2025-01-08)
 
 ### Initial Release
