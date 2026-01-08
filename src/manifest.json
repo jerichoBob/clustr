@@ -22,7 +22,8 @@
   "permissions": [
     "tabs",
     "storage",
-    "sessions"
+    "sessions",
+    "bookmarks"
   ],
   "commands": {
     "_execute_action": {
@@ -41,6 +42,7 @@
     }
   },
   "background": {
-    "service_worker": "background/service-worker.js"
+    "service_worker": "background/service-worker.js",
+    "type": "module"
   }
 }

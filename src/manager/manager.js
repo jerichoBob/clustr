@@ -1,6 +1,8 @@
 // Cluster MV3 - Manager JavaScript
 // Full-page kanban interface with drag-drop
 
+import { AIService, checkChromeAIAvailable, executeAction } from '../shared/ai-service.js';
+
 // State
 let allWindows = [];
 let savedSessions = [];
@@ -8,6 +10,11 @@ let recentlyClosed = [];
 let searchQuery = '';
 let currentWindowId = null;
 let managerTabId = null;
+
+// AI Chat state
+let aiService = null;
+let chatMessages = [];
+let isProcessing = false;
 
 // Drag state
 let draggedTab = null;
@@ -26,6 +33,17 @@ const sessionsListEl = document.getElementById('sessionsList');
 const recentlyClosedListEl = document.getElementById('recentlyClosedList');
 const themeSelect = document.getElementById('themeSelect');
 
+// Chat DOM Elements
+const chatSidebar = document.getElementById('chatSidebar');
+const chatToggle = document.getElementById('chatToggle');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+const chatMessagesEl = document.getElementById('chatMessages');
+const chatStatus = document.getElementById('chatStatus');
+const aiProviderSelect = document.getElementById('aiProviderSelect');
+const aiApiKey = document.getElementById('aiApiKey');
+const apiKeySection = document.getElementById('apiKeySection');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', init);
 
@@ -33,11 +51,11 @@ async function init() {
   // Get current tab ID (this manager tab)
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   managerTabId = tab.id;
-  
+
   // Get current window
   const currentWindow = await chrome.windows.getCurrent();
   currentWindowId = currentWindow.id;
-  
+
   // Display version
   const manifest = chrome.runtime.getManifest();
   document.getElementById('appVersion').textContent = `v${manifest.version}`;
@@ -46,22 +64,67 @@ async function init() {
   const settings = await chrome.runtime.sendMessage({ action: 'getSettings' });
   applyTheme(settings.darkMode);
   themeSelect.value = settings.darkMode;
-  
+
+  // Initialize AI settings
+  await initializeAI(settings);
+
   // Load all data
   await Promise.all([
     loadWindows(),
     loadSessions(),
     loadRecentlyClosed()
   ]);
-  
+
   // Set up event listeners
   setupEventListeners();
-  
+
   // Focus search
   searchInput.focus();
-  
+
   // Auto-refresh
   setInterval(loadWindows, 2000);
+}
+
+// Initialize AI service
+async function initializeAI(settings) {
+  const provider = settings.aiProvider || 'chrome-ai';
+  const apiKey = settings.aiApiKey || '';
+
+  // Update UI
+  aiProviderSelect.value = provider;
+  aiApiKey.value = apiKey;
+  updateApiKeyVisibility(provider);
+
+  // Create AI service
+  aiService = new AIService({ provider, apiKey });
+
+  // Check availability
+  await updateAIStatus();
+}
+
+async function updateAIStatus() {
+  const statusDot = chatStatus.querySelector('.status-dot');
+  const statusText = chatStatus.querySelector('.status-text');
+
+  const result = await aiService.isAvailable();
+
+  if (result.available) {
+    statusDot.classList.add('ready');
+    statusDot.classList.remove('error');
+    statusText.textContent = 'Ready';
+  } else {
+    statusDot.classList.add('error');
+    statusDot.classList.remove('ready');
+    statusText.textContent = result.reason?.split('.')[0] || 'Not available';
+  }
+}
+
+function updateApiKeyVisibility(provider) {
+  if (provider === 'openai' || provider === 'anthropic') {
+    apiKeySection.classList.remove('hidden');
+  } else {
+    apiKeySection.classList.add('hidden');
+  }
 }
 
 function setupEventListeners() {
@@ -136,6 +199,31 @@ function setupEventListeners() {
       const modal = e.target.closest('.modal');
       if (modal) modal.classList.add('hidden');
     });
+  });
+
+  // Chat sidebar toggle
+  chatToggle.addEventListener('click', toggleChatSidebar);
+
+  // Chat send
+  chatSend.addEventListener('click', sendChatMessage);
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+
+  // AI provider settings
+  aiProviderSelect.addEventListener('change', async (e) => {
+    const provider = e.target.value;
+    updateApiKeyVisibility(provider);
+    await saveAISettings();
+    await updateAIStatus();
+  });
+
+  aiApiKey.addEventListener('change', async () => {
+    await saveAISettings();
+    await updateAIStatus();
   });
 }
 
@@ -671,6 +759,158 @@ function downloadFile(content, filename, mimeType) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Chat Functions
+function toggleChatSidebar() {
+  chatSidebar.classList.toggle('collapsed');
+  document.body.classList.toggle('chat-open', !chatSidebar.classList.contains('collapsed'));
+
+  if (!chatSidebar.classList.contains('collapsed')) {
+    chatInput.focus();
+  }
+}
+
+async function saveAISettings() {
+  const provider = aiProviderSelect.value;
+  const apiKey = aiApiKey.value;
+
+  // Update service
+  aiService = new AIService({ provider, apiKey });
+
+  // Save to settings
+  await chrome.runtime.sendMessage({
+    action: 'updateSettings',
+    settings: { aiProvider: provider, aiApiKey: apiKey }
+  });
+}
+
+async function sendChatMessage() {
+  const message = chatInput.value.trim();
+  if (!message || isProcessing) return;
+
+  // Check availability first
+  const availability = await aiService.isAvailable();
+  if (!availability.available) {
+    addChatMessage('assistant', `I'm not available right now. ${availability.reason}`);
+    return;
+  }
+
+  // Add user message
+  addChatMessage('user', message);
+  chatInput.value = '';
+
+  // Show loading
+  isProcessing = true;
+  chatSend.disabled = true;
+  showChatLoading();
+
+  try {
+    // Build context
+    const context = await buildBrowserContext();
+
+    // Send to AI
+    const response = await aiService.chat(message, context);
+
+    // Remove loading
+    hideChatLoading();
+
+    // Add response
+    addChatMessage('assistant', response.content);
+
+    // Check for actions
+    const actions = aiService.parseActions(response);
+    for (const action of actions) {
+      const result = await executeAction(action);
+      addActionResult(result);
+
+      // Refresh data if action modified tabs
+      if (['closeTabs', 'saveSession', 'focusTab'].includes(action.action)) {
+        await loadWindows();
+        await loadSessions();
+      }
+    }
+  } catch (error) {
+    hideChatLoading();
+    addChatMessage('assistant', `Sorry, I encountered an error: ${error.message}`);
+  } finally {
+    isProcessing = false;
+    chatSend.disabled = false;
+  }
+}
+
+async function buildBrowserContext() {
+  // Get all tabs
+  const tabs = await chrome.tabs.query({});
+
+  // Get sessions
+  const sessions = savedSessions;
+
+  // Get bookmarks if available
+  let bookmarks = [];
+  try {
+    const bookmarkTree = await chrome.bookmarks.getTree();
+    bookmarks = bookmarkTree[0].children || [];
+  } catch (e) {
+    // Bookmarks permission not granted
+  }
+
+  return { tabs, sessions, bookmarks };
+}
+
+function addChatMessage(role, content) {
+  // Remove welcome message if it exists
+  const welcome = chatMessagesEl.querySelector('.chat-welcome');
+  if (welcome) welcome.remove();
+
+  const messageEl = document.createElement('div');
+  messageEl.className = `chat-message ${role}`;
+
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  messageEl.innerHTML = `
+    <div class="chat-message-content">${escapeHtml(content)}</div>
+    <div class="chat-message-time">${time}</div>
+  `;
+
+  chatMessagesEl.appendChild(messageEl);
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+  // Store in history
+  chatMessages.push({ role, content, time: Date.now() });
+}
+
+function addActionResult(result) {
+  const resultEl = document.createElement('div');
+  resultEl.className = `chat-action-result ${result.success ? 'success' : 'error'}`;
+  resultEl.textContent = result.message || (result.success ? 'Action completed' : 'Action failed');
+
+  // Add to last assistant message
+  const lastMessage = chatMessagesEl.querySelector('.chat-message.assistant:last-child');
+  if (lastMessage) {
+    lastMessage.appendChild(resultEl);
+  }
+}
+
+function showChatLoading() {
+  const loadingEl = document.createElement('div');
+  loadingEl.className = 'chat-loading';
+  loadingEl.id = 'chatLoading';
+  loadingEl.innerHTML = `
+    <div class="chat-loading-dots">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <span>Thinking...</span>
+  `;
+  chatMessagesEl.appendChild(loadingEl);
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+function hideChatLoading() {
+  const loadingEl = document.getElementById('chatLoading');
+  if (loadingEl) loadingEl.remove();
 }
 
 // Modals
