@@ -116,6 +116,12 @@ body {
   color: var(--accent-color);
 }
 
+#appVersion {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .header-center {
   flex: 1;
   max-width: 500px;

@@ -38,6 +38,10 @@ async function init() {
   const currentWindow = await chrome.windows.getCurrent();
   currentWindowId = currentWindow.id;
   
+  // Display version
+  const manifest = chrome.runtime.getManifest();
+  document.getElementById('appVersion').textContent = `v${manifest.version}`;
+
   // Load settings and apply theme
   const settings = await chrome.runtime.sendMessage({ action: 'getSettings' });
   applyTheme(settings.darkMode);
