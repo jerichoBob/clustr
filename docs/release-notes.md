@@ -1,5 +1,14 @@
 # Release Notes
 
+## v0.3.3 (2026-01-08)
+
+### Changes
+
+- feat: Add window management AI actions
+  - Add createWindow action to open new windows with specified URLs
+  - Add moveTabsToWindow action to move existing tabs to a new window
+  - Update AI system prompt to document new actions
+
 ## v0.3.2 (2026-01-08)
 
 ### Changes

@@ -1,6 +1,6 @@
 {
   "name": "clustr",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Window & Tab Manager Chrome Extension with AI Assistant",
   "type": "module",
   "scripts": {

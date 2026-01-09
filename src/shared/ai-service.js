@@ -37,6 +37,12 @@ When the user asks you to perform an action, respond with a JSON action block th
 5. Group tabs by domain:
    { "action": "groupByDomain" }
 
+6. Create a new window with URLs:
+   { "action": "createWindow", "urls": ["https://example.com", "https://other.com"] }
+
+7. Move existing tabs to a new window:
+   { "action": "moveTabsToWindow", "tabIds": [1, 2, 3] }
+
 Always be concise and helpful. When listing tabs, show title and URL. Format numbers and counts clearly.`;
 
 /**
@@ -361,6 +367,34 @@ export async function executeAction(action) {
         return { success: true, tabs: matches };
       }
       break;
+
+    case 'createWindow':
+      try {
+        const urls = action.tabs || action.urls || [];
+        if (urls.length === 0) {
+          return { success: false, message: 'No URLs provided for new window' };
+        }
+        const newWindow = await chrome.windows.create({ url: urls });
+        return { success: true, message: `Created new window with ${urls.length} tab(s)` };
+      } catch (e) {
+        return { success: false, message: `Failed to create window: ${e.message}` };
+      }
+
+    case 'moveTabsToWindow':
+      try {
+        const tabIds = action.tabIds || [];
+        if (tabIds.length === 0) {
+          return { success: false, message: 'No tabs specified to move' };
+        }
+        const newWindow = await chrome.windows.create({ tabId: tabIds[0] });
+        // Move remaining tabs to the new window
+        for (let i = 1; i < tabIds.length; i++) {
+          await chrome.tabs.move(tabIds[i], { windowId: newWindow.id, index: -1 });
+        }
+        return { success: true, message: `Moved ${tabIds.length} tab(s) to new window` };
+      } catch (e) {
+        return { success: false, message: `Failed to move tabs: ${e.message}` };
+      }
 
     case 'groupByDomain':
       try {
